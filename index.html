@@ -1,431 +1,502 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { HeartPulse, AlertOctagon, CheckCircle2, MessageSquare, ArrowRight, RotateCcw, Activity } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>De-escalation Lab</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React Core CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <!-- React DOM CDN -->
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel compiler for on-the-fly JSX compilation in browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 min-h-screen">
 
-// --- DATA: Extracted from SME provided document ---
-const SCENARIOS = [
-  {
-    id: 1,
-    patientPrompt: "I submitted an online consultation form hours ago and haven't heard a single thing back. When is someone actually going to look at it?",
-    options: [
-      {
-        id: 'bad',
-        text: "You've submitted your online request. Someone will get back to you, I can't say when.",
-        isOptimal: false,
-        tensionChange: +35,
-        patientReaction: "So I'm just supposed to sit by the phone indefinitely? This system is awful.",
-        feedback: {
-          title: "Escalation Triggered",
-          text: "This leaves the patient in a void. No timeframe, no ownership, no sense that anyone is actually looking at their request. In a system where they cannot phone and queue anymore, this feels like abandonment."
-        }
-      },
-      {
-        id: 'good',
-        text: "Your request has come through and a clinician will review it today. If it's urgent, please let us know that in your message and we will prioritise it.",
-        isOptimal: true,
-        tensionChange: -20,
-        patientReaction: "Okay. Just please make sure they know I'm in a lot of pain.",
-        feedback: {
-          title: "De-escalation Successful",
-          text: "It confirms receipt, sets a realistic expectation, and, crucially, gives the patient a way to escalate if they need to. It keeps them in the system rather than outside it."
-        }
-      }
-    ]
-  },
-  {
-    id: 2,
-    patientPrompt: "This whole clinic is a joke! I am so sick of being passed around and ignored every time I try to get help here!",
-    options: [
-      {
-        id: 'bad',
-        text: "You need to calm down.",
-        isOptimal: false,
-        tensionChange: +40,
-        patientReaction: "Don't you dare tell me to calm down! I want to speak to the Practice Manager right now!",
-        feedback: {
-          title: "Escalation Triggered",
-          text: "This is one of the most counterproductive things you can say in a heated moment. It invalidates how the patient is feeling, sounds condescending, and gives them something new to be angry about. Nobody has ever calmed down because they were told to do so."
-        }
-      },
-      {
-        id: 'good',
-        text: "I can see this is really upsetting. Let us work out what we can do together.",
-        isOptimal: true,
-        tensionChange: -25,
-        patientReaction: "I just... I just want someone to listen to me and actually fix this.",
-        feedback: {
-          title: "De-escalation Successful",
-          text: "The patient stops fighting against you and starts working with you. Two words, “I can see\" and \"together”, make that shift happen."
-        }
-      }
-    ]
-  },
-  {
-    id: 3,
-    patientPrompt: "Why do I have to wait 3 working days for a repeat prescription? I am completely out of my medication right now!",
-    options: [
-      {
-        id: 'bad',
-        text: "I am just following policy.",
-        isOptimal: false,
-        tensionChange: +30,
-        patientReaction: "Your policy isn't helping my health! This is ridiculous.",
-        feedback: {
-          title: "Escalation Triggered",
-          text: "It hides the human behind the process. The patient stops seeing a person and starts seeing a barrier. It also signals \"I cannot help you and I am not going to try\", which leaves them nowhere to go but up."
-        }
-      },
-      {
-        id: 'good',
-        text: "I understand why you are concerned. Let me see what options we have.",
-        isOptimal: true,
-        tensionChange: -15,
-        patientReaction: "Fine. What options do I actually have right now?",
-        feedback: {
-          title: "De-escalation Successful",
-          text: "It acknowledges that the concern makes sense without saying you are right or we got this wrong. \"Let me see what options we have\" signals ownership and action without promising an outcome that may not be possible."
-        }
-      }
-    ]
-  },
-  {
-    id: 4,
-    patientPrompt: "Wait, nobody told me I'd have to book a completely separate appointment just to get my blood test done!",
-    options: [
-      {
-        id: 'bad',
-        text: "I have already explained this.",
-        isOptimal: false,
-        tensionChange: +45,
-        patientReaction: "Are you calling me stupid? You clearly did not explain it well enough!",
-        feedback: {
-          title: "Escalation Triggered",
-          text: "Even if it is true, saying it out loud turns problem solving into blame. That is very hard to come back from."
-        }
-      },
-      {
-        id: 'good',
-        text: "I am sorry you have had this experience. That is not how we want things to go for you.",
-        isOptimal: true,
-        tensionChange: -20,
-        patientReaction: "It just feels like I'm constantly getting the runaround here.",
-        feedback: {
-          title: "De-escalation Successful",
-          text: "It gives an apology for the experience, not the policy or the outcome. It costs nothing and changes everything. It tells the patient that how they feel matters."
-        }
-      }
-    ]
-  },
-  {
-    id: 5,
-    patientPrompt: "The hospital just told me the referral will take 8 months! I can't wait that long in this much pain, you have to do something!",
-    options: [
-      {
-        id: 'bad',
-        text: "There is nothing I can do.",
-        isOptimal: false,
-        tensionChange: +40,
-        patientReaction: "So you're just giving up on me? I'll be calling PALS (Patient Advice and Liaison Service) about this!",
-        feedback: {
-          title: "Escalation Triggered",
-          text: "Even when options are genuinely limited, this immediately closes every door. A person who feels completely powerless has nothing left to lose by escalating further."
-        }
-      },
-      {
-        id: 'good',
-        text: "That sounds really difficult. Let me make sure someone who can help is aware of this.",
-        isOptimal: true,
-        tensionChange: -20,
-        patientReaction: "Thank you. Please, I just need a doctor to look into expediting it.",
-        feedback: {
-          title: "De-escalation Successful",
-          text: "For situations beyond your immediate control, this keeps the patient feeling held rather than handed off. There is a difference between being passed on and being abandoned."
-        }
-      }
-    ]
-  },
-  {
-    id: 6,
-    patientPrompt: "I've been sitting in this waiting room for 45 minutes past my appointment time. Does anyone even care that I'm here?",
-    options: [
-      {
-        id: 'bad',
-        text: "You are not the only patient we have on our list.",
-        isOptimal: false,
-        tensionChange: +35,
-        patientReaction: "I don't care about your other patients right now, I care about my appointment!",
-        feedback: {
-          title: "Escalation Triggered",
-          text: "However frustrated you feel, this tells the patient they do not matter. To someone who already feels invisible, that is devastating."
-        }
-      },
-      {
-        id: 'good',
-        text: "That makes complete sense. Give me a moment and I will do everything I can.",
-        isOptimal: true,
-        tensionChange: -25,
-        patientReaction: "Okay. I'll sit back down, just please check for me.",
-        feedback: {
-          title: "De-escalation Successful",
-          text: "\"That makes complete sense\" doesn't just claim to listen, it proves it. The patient stops feeling like they have to fight to be understood. \"Give me a moment and I will do everything I can\" shows someone is actually moving on their behalf. Heard and helped. That is all most patients need."
-        }
-      }
-    ]
-  }
-];
+    <div id="root"></div>
 
-export default function App() {
-  const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
-  const [chatHistory, setChatHistory] = useState([]);
-  const [tensionLevel, setTensionLevel] = useState(40); // Starts at a moderate tension
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [isGameComplete, setIsGameComplete] = useState(false);
-  const [isShaking, setIsShaking] = useState(false);
-  
-  const chatEndRef = useRef(null);
-  const currentScenario = SCENARIOS[currentScenarioIndex];
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-  // Initialize first message
-  useEffect(() => {
-    if (chatHistory.length === 0 && currentScenario) {
-      setTimeout(() => {
-        setChatHistory([{ sender: 'patient', text: currentScenario.patientPrompt }]);
-      }, 500);
-    }
-  }, [currentScenarioIndex]);
+        // Custom SVG Icons mimicking Lucide React to run smoothly without imports
+        const HeartPulse = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                <path d="M3.22 12H9.5l1.5-5 2 10 1.5-5h3.1" />
+            </svg>
+        );
 
-  // Auto-scroll chat
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory]);
+        const AlertOctagon = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+        );
 
-  const handleOptionSelect = (option) => {
-    setSelectedOption(option);
-    
-    // Add user message to chat
-    setChatHistory(prev => [...prev, { sender: 'user', text: option.text }]);
-    
-    // Update Tension
-    const newTension = Math.max(0, Math.min(100, tensionLevel + option.tensionChange));
-    setTensionLevel(newTension);
+        const CheckCircle2 = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <circle cx="12" cy="12" r="10" />
+                <path d="m9 12 2 2 4-4" />
+            </svg>
+        );
 
-    // Screen shake effect for bad choices
-    if (!option.isOptimal) {
-      setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 500);
-    }
+        const MessageSquare = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+        );
 
-    // Delay patient reaction and feedback
-    setTimeout(() => {
-      setChatHistory(prev => [...prev, { 
-        sender: 'patient', 
-        text: option.patientReaction,
-        isReaction: true,
-        isOptimal: option.isOptimal
-      }]);
-      
-      setTimeout(() => {
-        setShowFeedback(true);
-      }, 1000);
-    }, 800);
-  };
+        const ArrowRight = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+            </svg>
+        );
 
-  const nextScenario = () => {
-    if (currentScenarioIndex < SCENARIOS.length - 1) {
-      setCurrentScenarioIndex(prev => prev + 1);
-      setShowFeedback(false);
-      setSelectedOption(null);
-      // Keep chat history but add a divider, or clear it. Let's clear for clean slate.
-      setChatHistory([]); 
-      // Reset tension slightly towards middle, but carry over some consequence
-      setTensionLevel(prev => (prev + 40) / 2); 
-    } else {
-      setIsGameComplete(true);
-      setShowFeedback(false);
-    }
-  };
+        const RotateCcw = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <polyline points="3 3 3 8 8 8" />
+            </svg>
+        );
 
-  const restartSimulation = () => {
-    setCurrentScenarioIndex(0);
-    setChatHistory([]);
-    setTensionLevel(40);
-    setShowFeedback(false);
-    setSelectedOption(null);
-    setIsGameComplete(false);
-  };
+        const Activity = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+        );
 
-  // Helper to determine tension meter color
-  const getTensionColor = (level) => {
-    if (level < 30) return 'bg-emerald-500';
-    if (level < 60) return 'bg-amber-400';
-    if (level < 80) return 'bg-orange-500';
-    return 'bg-red-600';
-  };
+        // SME approved scenario content mapping Do's and Don'ts directly to the simulation
+        const SCENARIOS = [
+            {
+                id: 1,
+                patientPrompt: "I submitted an online consultation form hours ago and haven't heard a single thing back. When is someone actually going to look at it?",
+                options: [
+                    {
+                        id: 'bad',
+                        text: "You've submitted your online request. Someone will get back to you, I can't say when.",
+                        isOptimal: false,
+                        tensionChange: +35,
+                        patientReaction: "So I'm just supposed to sit by the phone indefinitely? This system is awful.",
+                        feedback: {
+                            title: "Escalation Triggered",
+                            text: "This leaves the patient in a void. No timeframe, no ownership, no sense that anyone is actually looking at their request. In a system where they cannot phone and queue anymore, this feels like abandonment."
+                        }
+                    },
+                    {
+                        id: 'good',
+                        text: "Your request has come through and a clinician will review it today. If it's urgent, please let us know that in your message and we will prioritise it.",
+                        isOptimal: true,
+                        tensionChange: -20,
+                        patientReaction: "Okay. Just please make sure they know I'm in a lot of pain.",
+                        feedback: {
+                            title: "De-escalation Successful",
+                            text: "It confirms receipt, sets a realistic expectation, and, crucially, gives the patient a way to escalate if they need to. It keeps them in the system rather than outside it."
+                        }
+                    }
+                ]
+            },
+            {
+                id: 2,
+                patientPrompt: "This whole clinic is a joke! I am so sick of being passed around and ignored every time I try to get help here!",
+                options: [
+                    {
+                        id: 'bad',
+                        text: "You need to calm down.",
+                        isOptimal: false,
+                        tensionChange: +40,
+                        patientReaction: "Don't you dare tell me to calm down! I want to speak to the Practice Manager right now!",
+                        feedback: {
+                            title: "Escalation Triggered",
+                            text: "This is one of the most counterproductive things you can say in a heated moment. It invalidates how the patient is feeling, sounds condescending, and gives them something new to be angry about. Nobody has ever calmed down because they were told to do so."
+                        }
+                    },
+                    {
+                        id: 'good',
+                        text: "I can see this is really upsetting. Let us work out what we can do together.",
+                        isOptimal: true,
+                        tensionChange: -25,
+                        patientReaction: "I just... I just want someone to listen to me and actually fix this.",
+                        feedback: {
+                            title: "De-escalation Successful",
+                            text: "The patient stops fighting against you and starts working with you. Two words, 'I can see' and 'together', make that shift happen."
+                        }
+                    }
+                ]
+            },
+            {
+                id: 3,
+                patientPrompt: "Why do I have to wait 3 working days for a repeat prescription? I am completely out of my medication right now!",
+                options: [
+                    {
+                        id: 'bad',
+                        text: "I am just following policy.",
+                        isOptimal: false,
+                        tensionChange: +30,
+                        patientReaction: "Your policy isn't helping my health! This is ridiculous.",
+                        feedback: {
+                            title: "Escalation Triggered",
+                            text: "It hides the human behind the process. The patient stops seeing a person and starts seeing a barrier. It also signals 'I cannot help you and I am not going to try', which leaves them nowhere to go but up."
+                        }
+                    },
+                    {
+                        id: 'good',
+                        text: "I understand why you are concerned. Let me see what options we have.",
+                        isOptimal: true,
+                        tensionChange: -15,
+                        patientReaction: "Fine. What options do I actually have right now?",
+                        feedback: {
+                            title: "De-escalation Successful",
+                            text: "It acknowledges that the concern makes sense without saying you are right or we got this wrong. 'Let me see what options we have' signals ownership and action without promising an outcome that may not be possible."
+                        }
+                    }
+                ]
+            },
+            {
+                id: 4,
+                patientPrompt: "Wait, nobody told me I'd have to book a completely separate appointment just to get my blood test done!",
+                options: [
+                    {
+                        id: 'bad',
+                        text: "I have already explained this.",
+                        isOptimal: false,
+                        tensionChange: +45,
+                        patientReaction: "Are you calling me stupid? You clearly did not explain it well enough!",
+                        feedback: {
+                            title: "Escalation Triggered",
+                            text: "Even if it is true, saying it out loud turns problem solving into blame. That is very hard to come back from."
+                        }
+                    },
+                    {
+                        id: 'good',
+                        text: "I am sorry you have had this experience. That is not how we want things to go for you.",
+                        isOptimal: true,
+                        tensionChange: -20,
+                        patientReaction: "It just feels like I'm constantly getting the runaround here.",
+                        feedback: {
+                            title: "De-escalation Successful",
+                            text: "It gives an apology for the experience, not the policy or the outcome. It costs nothing and changes everything. It tells the patient that how they feel matters."
+                        }
+                    }
+                ]
+            },
+            {
+                id: 5,
+                patientPrompt: "The hospital just told me the referral will take 8 months! I can't wait that long in this much pain, you have to do something!",
+                options: [
+                    {
+                        id: 'bad',
+                        text: "There is nothing I can do.",
+                        isOptimal: false,
+                        tensionChange: +40,
+                        patientReaction: "So you're just giving up on me? I'll be calling PALS (Patient Advice and Liaison Service) about this!",
+                        feedback: {
+                            title: "Escalation Triggered",
+                            text: "Even when options are genuinely limited, this immediately closes every door. A person who feels completely powerless has nothing left to lose by escalating further."
+                        }
+                    },
+                    {
+                        id: 'good',
+                        text: "That sounds really difficult. Let me make sure someone who can help is aware of this.",
+                        isOptimal: true,
+                        tensionChange: -20,
+                        patientReaction: "Thank you. Please, I just need a doctor to look into expediting it.",
+                        feedback: {
+                            title: "De-escalation Successful",
+                            text: "For situations beyond your immediate control, this keeps the patient feeling held rather than handed off. There is a difference between being passed on and being abandoned."
+                        }
+                    }
+                ]
+            },
+            {
+                id: 6,
+                patientPrompt: "I've been sitting in this waiting room for 45 minutes past my appointment time. Does anyone even care that I'm here?",
+                options: [
+                    {
+                        id: 'bad',
+                        text: "You are not the only patient we have on our list.",
+                        isOptimal: false,
+                        tensionChange: +35,
+                        patientReaction: "I don't care about your other patients right now, I care about my appointment!",
+                        feedback: {
+                            title: "Escalation Triggered",
+                            text: "However frustrated you feel, this tells the patient they do not matter. To someone who already feels invisible, that is devastating."
+                        }
+                    },
+                    {
+                        id: 'good',
+                        text: "That makes complete sense. Give me a moment and I will do everything I can.",
+                        isOptimal: true,
+                        tensionChange: -25,
+                        patientReaction: "Okay. I'll sit back down, just please check for me.",
+                        feedback: {
+                            title: "De-escalation Successful",
+                            text: "'That makes complete sense' doesn't just claim to listen, it proves it. The patient stops feeling like they have to fight to be understood. 'Give me a moment and I will do everything I can' shows someone is actually moving on their behalf. Heard and helped. That is all most patients need."
+                        }
+                    }
+                ]
+            }
+        ];
 
-  return (
-    <div className={`min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans ${isShaking ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
-      
-      {/* CSS for custom shake animation */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-          20%, 40%, 60%, 80% { transform: translateX(5px); }
-        }
-        .pulse-ring {
-          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: .5; }
-        }
-      `}} />
+        function App() {
+            const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
+            const [chatHistory, setChatHistory] = useState([]);
+            const [tensionLevel, setTensionLevel] = useState(40); // Moderate starting tension
+            const [showFeedback, setShowFeedback] = useState(false);
+            const [selectedOption, setSelectedOption] = useState(null);
+            const [isGameComplete, setIsGameComplete] = useState(false);
+            const [isShaking, setIsShaking] = useState(false);
+            
+            const chatEndRef = useRef(null);
+            const currentScenario = SCENARIOS[currentScenarioIndex];
 
-      <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row h-[85vh] max-h-[800px]">
-        
-        {/* LEFT PANEL: Tension & Context */}
-        <div className="bg-slate-900 text-white w-full md:w-80 p-6 flex flex-col shrink-0">
-          <div className="flex items-center gap-3 mb-8">
-            <Activity className="text-blue-400" size={28} />
-            <h1 className="text-xl font-bold">De-escalation Lab</h1>
-          </div>
+            // Setup scenario starts
+            useEffect(() => {
+                if (chatHistory.length === 0 && currentScenario) {
+                    const timer = setTimeout(() => {
+                        setChatHistory([{ sender: 'patient', text: currentScenario.patientPrompt }]);
+                    }, 500);
+                    return () => clearTimeout(timer);
+                }
+            }, [currentScenarioIndex, chatHistory.length]);
 
-          {!isGameComplete && (
-            <>
-              <div className="mb-6 bg-slate-800 p-4 rounded-xl border border-slate-700">
-                <h2 className="text-sm text-slate-400 uppercase tracking-wider font-semibold mb-2">Scenario {currentScenarioIndex + 1} of {SCENARIOS.length}</h2>
-                <p className="text-sm text-slate-200">Choose the response that will best de-escalate the patient's frustration.</p>
-              </div>
+            // Track scroll position
+            useEffect(() => {
+                chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [chatHistory]);
 
-              <div className="mt-auto">
-                <h3 className="flex items-center gap-2 text-sm font-semibold mb-3">
-                  <HeartPulse size={18} className={tensionLevel > 75 ? 'text-red-500 pulse-ring' : 'text-slate-400'} />
-                  Patient Tension Level
-                </h3>
-                <div className="h-4 w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-                  <div 
-                    className={`h-full transition-all duration-1000 ease-out ${getTensionColor(tensionLevel)}`}
-                    style={{ width: `${tensionLevel}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-xs text-slate-500 mt-2 font-medium">
-                  <span>Calm</span>
-                  <span>Agitated</span>
-                  <span>Hostile</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+            const handleOptionSelect = (option) => {
+                setSelectedOption(option);
+                
+                // Add choice to chat history
+                setChatHistory(prev => [...prev, { sender: 'user', text: option.text }]);
+                
+                // Scale physical tension meter
+                const newTension = Math.max(0, Math.min(100, tensionLevel + option.tensionChange));
+                setTensionLevel(newTension);
 
-        {/* RIGHT PANEL: Interactive UI */}
-        <div className="flex-1 flex flex-col relative bg-slate-50">
-          
-          {isGameComplete ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-500">
-              <div className={`w-24 h-24 rounded-full mb-6 flex items-center justify-center ${tensionLevel < 50 ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`}>
-                {tensionLevel < 50 ? <CheckCircle2 size={48} /> : <AlertOctagon size={48} />}
-              </div>
-              <h2 className="text-3xl font-bold text-slate-800 mb-4">Simulation Complete</h2>
-              <p className="text-slate-600 max-w-md mb-8 text-lg">
-                Your final patient tension level was <strong className={tensionLevel < 50 ? 'text-emerald-600' : 'text-red-600'}>{tensionLevel}%</strong>. 
-                <br/><br/>
-                Remember: Empathy isn't just about being nice; it's a strategic tool to reduce barriers and move toward problem-solving.
-              </p>
-              <button 
-                onClick={restartSimulation}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
-              >
-                <RotateCcw size={20} />
-                Try Again
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Chat Area */}
-              <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-4">
-                {chatHistory.map((msg, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`flex max-w-[85%] ${msg.sender === 'user' ? 'ml-auto justify-end' : 'mr-auto justify-start'} animate-in slide-in-from-bottom-4 fade-in duration-300`}
-                  >
-                    <div className={`
-                      p-4 rounded-2xl shadow-sm text-[15px] leading-relaxed
-                      ${msg.sender === 'user' 
-                        ? 'bg-blue-600 text-white rounded-br-sm' 
-                        : 'bg-white text-slate-800 border border-slate-200 rounded-bl-sm'}
-                      ${msg.isReaction && !msg.isOptimal ? 'border-red-300 bg-red-50' : ''}
-                      ${msg.isReaction && msg.isOptimal ? 'border-emerald-300 bg-emerald-50' : ''}
-                    `}>
-                      {msg.sender === 'patient' && !msg.isReaction && (
-                         <div className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1">
-                           <MessageSquare size={12} /> Patient
-                         </div>
-                      )}
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
+                // Add tactile screen shake on a sub-optimal choice
+                if (!option.isOptimal) {
+                    setIsShaking(true);
+                    setTimeout(() => setIsShaking(false), 500);
+                }
 
-              {/* Input / Options Area */}
-              <div className="p-6 bg-white border-t border-slate-200 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
-                {!selectedOption ? (
-                  <div className="flex flex-col gap-3">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Select your response:</p>
-                    {currentScenario.options.map((opt) => (
-                      <button
-                        key={opt.id}
-                        onClick={() => handleOptionSelect(opt)}
-                        className="text-left w-full p-4 rounded-xl border-2 border-slate-100 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md transition-all duration-200 text-slate-700 font-medium leading-snug group"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="w-6 h-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center shrink-0 mt-0.5 group-hover:border-blue-500">
-                             {/* Empty circle for radio button feel */}
-                          </div>
-                          <span>{opt.text}</span>
+                // Stage physical response from simulated patient
+                setTimeout(() => {
+                    setChatHistory(prev => [...prev, { 
+                        sender: 'patient', 
+                        text: option.patientReaction,
+                        isReaction: true,
+                        isOptimal: option.isOptimal
+                    }]);
+                    
+                    setTimeout(() => {
+                        setShowFeedback(true);
+                    }, 1000);
+                }, 800);
+            };
+
+            const nextScenario = () => {
+                if (currentScenarioIndex < SCENARIOS.length - 1) {
+                    setCurrentScenarioIndex(prev => prev + 1);
+                    setShowFeedback(false);
+                    setSelectedOption(null);
+                    setChatHistory([]); 
+                    // Maintain consequence but bleed off a bit of scenario state tension
+                    setTensionLevel(prev => Math.round((prev + 40) / 2)); 
+                } else {
+                    setIsGameComplete(true);
+                    setShowFeedback(false);
+                }
+            };
+
+            const restartSimulation = () => {
+                setCurrentScenarioIndex(0);
+                setChatHistory([]);
+                setTensionLevel(40);
+                setShowFeedback(false);
+                setSelectedOption(null);
+                setIsGameComplete(false);
+            };
+
+            const getTensionColor = (level) => {
+                if (level < 30) return 'bg-emerald-500';
+                if (level < 60) return 'bg-amber-400';
+                if (level < 80) return 'bg-orange-500';
+                return 'bg-red-600';
+            };
+
+            return (
+                <div className={`min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans ${isShaking ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
+                    
+                    <style dangerouslySetInnerHTML={{__html: `
+                        @keyframes shake {
+                            0%, 100% { transform: translateX(0); }
+                            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+                            20%, 40%, 60%, 80% { transform: translateX(5px); }
+                        }
+                        .pulse-ring {
+                            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+                        }
+                        @keyframes pulse {
+                            0%, 100% { opacity: 1; }
+                            50% { opacity: .5; }
+                        }
+                    `}} />
+
+                    <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row h-[85vh] max-h-[800px]">
+                        
+                        {/* Status/Score Left Section */}
+                        <div className="bg-slate-900 text-white w-full md:w-80 p-6 flex flex-col shrink-0">
+                            <div className="flex items-center gap-3 mb-8">
+                                <Activity className="text-blue-400" size={28} />
+                                <h1 className="text-xl font-bold">De-escalation Lab</h1>
+                            </div>
+
+                            {!isGameComplete && (
+                                <>
+                                    <div className="mb-6 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                                        <h2 className="text-sm text-slate-400 uppercase tracking-wider font-semibold mb-2">Scenario {currentScenarioIndex + 1} of {SCENARIOS.length}</h2>
+                                        <p className="text-sm text-slate-200">De-escalate the medical patient's frustration in real-time by selecting active responses.</p>
+                                    </div>
+
+                                    <div className="mt-auto">
+                                        <h3 className="flex items-center gap-2 text-sm font-semibold mb-3">
+                                            <HeartPulse size={18} className={tensionLevel > 75 ? 'text-red-500 pulse-ring' : 'text-slate-400'} />
+                                            Active Tension Level
+                                        </h3>
+                                        <div className="h-4 w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                                            <div 
+                                                className={`h-full transition-all duration-1000 ease-out ${getTensionColor(tensionLevel)}`}
+                                                style={{ width: `${tensionLevel}%` }}
+                                            ></div>
+                                        </div>
+                                        <div className="flex justify-between text-xs text-slate-500 mt-2 font-medium">
+                                            <span>Calm</span>
+                                            <span>Agitated</span>
+                                            <span>Hostile</span>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="h-[120px] flex items-center justify-center text-slate-400 italic">
-                    Waiting for patient response...
-                  </div>
-                )}
-              </div>
-            </>
-          )}
 
-          {/* Feedback Modal Overlay */}
-          {showFeedback && selectedOption && (
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-10 animate-in fade-in duration-300">
-              <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full animate-in zoom-in-95 duration-300">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${selectedOption.isOptimal ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                  {selectedOption.isOptimal ? <CheckCircle2 size={24} /> : <AlertOctagon size={24} />}
+                        {/* Interactive Sandbox/Play Section */}
+                        <div className="flex-1 flex flex-col relative bg-slate-50">
+                            
+                            {isGameComplete ? (
+                                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                                    <div className={`w-24 h-24 rounded-full mb-6 flex items-center justify-center ${tensionLevel < 50 ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`}>
+                                        {tensionLevel < 50 ? <CheckCircle2 size={48} /> : <AlertOctagon size={48} />}
+                                    </div>
+                                    <h2 className="text-3xl font-bold text-slate-800 mb-4">Simulation Complete</h2>
+                                    <p className="text-slate-600 max-w-md mb-8 text-lg">
+                                        The final calculated patient tension level ended at <strong className={tensionLevel < 50 ? 'text-emerald-600' : 'text-red-600'}>{tensionLevel}%</strong>. 
+                                        <br/><br/>
+                                        Patient-first empathy in critical scenarios turns friction into a joint effort to seek options.
+                                    </p>
+                                    <button 
+                                        onClick={restartSimulation}
+                                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+                                    >
+                                        <RotateCcw size={20} />
+                                        Restart Simulation
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Chat Space */}
+                                    <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-4">
+                                        {chatHistory.map((msg, idx) => (
+                                            <div 
+                                                key={idx} 
+                                                className={`flex max-w-[85%] ${msg.sender === 'user' ? 'ml-auto justify-end' : 'mr-auto justify-start'}`}
+                                            >
+                                                <div className={`
+                                                    p-4 rounded-2xl shadow-sm text-[15px] leading-relaxed
+                                                    ${msg.sender === 'user' 
+                                                        ? 'bg-blue-600 text-white rounded-br-sm' 
+                                                        : 'bg-white text-slate-800 border border-slate-200 rounded-bl-sm'}
+                                                    ${msg.isReaction && !msg.isOptimal ? 'border-red-300 bg-red-50' : ''}
+                                                    ${msg.isReaction && msg.isOptimal ? 'border-emerald-300 bg-emerald-50' : ''}
+                                                `}>
+                                                    {msg.sender === 'patient' && !msg.isReaction && (
+                                                         <div className="text-xs font-bold text-slate-400 mb-1 flex items-center gap-1">
+                                                             <MessageSquare size={12} /> Patient
+                                                         </div>
+                                                    )}
+                                                    {msg.text}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div ref={chatEndRef} />
+                                    </div>
+
+                                    {/* Selection Option Panel */}
+                                    <div className="p-6 bg-white border-t border-slate-200 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
+                                        {!selectedOption ? (
+                                            <div className="flex flex-col gap-3">
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">Select your Response Strategy:</p>
+                                                {currentScenario.options.map((opt) => (
+                                                    <button
+                                                        key={opt.id}
+                                                        onClick={() => handleOptionSelect(opt)}
+                                                        className="text-left w-full p-4 rounded-xl border-2 border-slate-100 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md transition-all duration-200 text-slate-700 font-medium leading-snug group"
+                                                    >
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="w-6 h-6 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center shrink-0 mt-0.5 group-hover:border-blue-500"></div>
+                                                            <span>{opt.text}</span>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="h-[120px] flex items-center justify-center text-slate-400 italic">
+                                                Formulating patient response...
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Detailed Clinical Review Card Overlay */}
+                            {showFeedback && selectedOption && (
+                                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 z-10">
+                                    <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${selectedOption.isOptimal ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                            {selectedOption.isOptimal ? <CheckCircle2 size={24} /> : <AlertOctagon size={24} />}
+                                        </div>
+                                        
+                                        <h3 className={`text-xl font-bold mb-2 ${selectedOption.isOptimal ? 'text-emerald-700' : 'text-red-700'}`}>
+                                            {selectedOption.feedback.title}
+                                        </h3>
+                                        
+                                        <p className="text-slate-600 mb-8 leading-relaxed text-sm">
+                                            {selectedOption.feedback.text}
+                                        </p>
+                                        
+                                        <button 
+                                            onClick={nextScenario}
+                                            className="w-full bg-slate-900 hover:bg-slate-800 text-white p-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            {currentScenarioIndex < SCENARIOS.length - 1 ? 'Next Challenge' : 'View Core Results'}
+                                            <ArrowRight size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
-                
-                <h3 className={`text-xl font-bold mb-2 ${selectedOption.isOptimal ? 'text-emerald-700' : 'text-red-700'}`}>
-                  {selectedOption.feedback.title}
-                </h3>
-                
-                <p className="text-slate-600 mb-8 leading-relaxed">
-                  {selectedOption.feedback.text}
-                </p>
-                
-                <button 
-                  onClick={nextScenario}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white p-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
-                >
-                  {currentScenarioIndex < SCENARIOS.length - 1 ? 'Next Scenario' : 'View Results'}
-                  <ArrowRight size={18} />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+            );
+        }
+
+        // Mount the React Application container globally inside index.html on load
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
